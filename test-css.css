@@ -6,3 +6,9 @@
     margin-top: 50px;
 }
 
+.another-message {
+    font-size: 20px;
+    font-weight: bold;
+    color:aquamarine;
+    text-align: center;
+}
