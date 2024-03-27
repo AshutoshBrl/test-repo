@@ -1,0 +1,39 @@
+name: Build and Push Docker Image
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  build-and-push:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Update package.json
+        run: npx npm-check-updates -u
+
+      - name: Build Docker image
+        run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            docker build -t ${{ secrets.DOCKER_USERNAME }}/backend:prod-${{ github.sha }} .
+          elif [ "${{ github.ref }}" == "refs/heads/dev" ]; then
+            docker build -t ${{ secrets.DOCKER_USERNAME }}/backend:dev-${{ github.sha }} .
+          fi
+
+      - name: Push Docker image to Docker Hub
+        run: |
+          echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            docker push ${{ secrets.DOCKER_USERNAME }}/backend:prod-${{ github.sha }}
+          elif [ "${{ github.ref }}" == "refs/heads/dev" ]; then
+            docker push ${{ secrets.DOCKER_USERNAME }}/backend:dev-${{ github.sha }}
+          fi
