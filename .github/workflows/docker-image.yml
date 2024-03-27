@@ -1,13 +1,13 @@
-name: Build and Push Docker Image
+name: Build and Deploy Frontend
+
 on:
   push:
     branches:
       - main
-      - dev
 
 jobs:
-  build-and-push:
-    runs-on: self-hosted
+  build-and-deploy:
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
@@ -18,22 +18,27 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install dependencies
+        run: npm ci
+
       - name: Update package.json
         run: npx npm-check-updates -u
 
-      - name: Build Docker image
-        run: |
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            docker build -t ${{ secrets.DOCKER_USERNAME }}/backend:prod-${{ github.sha }} .
-          elif [ "${{ github.ref }}" == "refs/heads/dev" ]; then
-            docker build -t ${{ secrets.DOCKER_USERNAME }}/backend:dev-${{ github.sha }} .
-          fi
+      - name: Build Frontend
+        run: npm run build
 
-      - name: Push Docker image to Docker Hub
+      - name: Upload to S3
+        uses: jakejarvis/s3-sync-action@master
+        with:
+          args: --acl public-read --follow-symlinks --delete
+        env:
+          AWS_S3_BUCKET: ashutosh-img
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Invalidate CloudFront cache
         run: |
-          echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            docker push ${{ secrets.DOCKER_USERNAME }}/backend:prod-${{ github.sha }}
-          elif [ "${{ github.ref }}" == "refs/heads/dev" ]; then
-            docker push ${{ secrets.DOCKER_USERNAME }}/backend:dev-${{ github.sha }}
-          fi
+          aws cloudfront create-invalidation --distribution-id ER3KUZFWK5K0S  --paths "/*"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
